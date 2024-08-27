@@ -65,8 +65,16 @@ constraint forall (j,i in GRAPH_NODES where i > j)(
   ReachabilityMatrix[j,i] == (NodeDisjointSubgraphIndex[i] == NodeDisjointSubgraphIndex[j])
 );
 
-function array[$$I, $$J] of var bool: transpose(array[$$J, $$I] of var bool: x) =
-  array2d(index_set_2of2(x), index_set_1of2(x), [x[j,i] | j in index_set_1of2(x), i in index_set_2of2(x)]);
+predicate transpose(array[$$J, $$I] of var bool: x, array[$$I, $$J] of var bool: t) =
+  forall(j in index_set_1of2(x), i in index_set_2of2(x))(
+    t[i,j] == x[j,i]
+  );
+
+array[index_set_2of2(NodeDisjointSubgraphMatrix),index_set_1of2(NodeDisjointSubgraphMatrix)] of var bool: TNodeDisjointSubgraphMatrix;
+array[index_set_2of2(EdgeDisjointSubgraphMatrix),index_set_1of2(EdgeDisjointSubgraphMatrix)] of var bool: TEdgeDisjointSubgraphMatrix;
+
+constraint transpose(NodeDisjointSubgraphMatrix, TNodeDisjointSubgraphMatrix);
+constraint transpose(EdgeDisjointSubgraphMatrix, TEdgeDisjointSubgraphMatrix);
 
 output["\n"++"================================================================================\n"];
 output["================================================================================\n"];
@@ -77,11 +85,11 @@ output["\n"++"GraphEdges:\n"++show_array2d_bool(array2d(GRAPH_EDGES, 1..1, Graph
 output["\n"++"--------------------------------------------------------------------------------\n"];
 output["\n"++"NodeDisjointSubgraphIndex:\n"++show(NodeDisjointSubgraphIndex)++"\n"];
 output["\n"++"DisjointSubgraphNodeSet:\n"++show(DisjointSubgraphNodeSet)++"\n"];
-output["\n"++"NodeDisjointSubgraphMatrix:\n"++show_array2d_bool(transpose(NodeDisjointSubgraphMatrix))];
+output["\n"++"NodeDisjointSubgraphMatrix:\n"++show_array2d_bool(TNodeDisjointSubgraphMatrix)];
 output["\n"++"--------------------------------------------------------------------------------\n"];
 output["\n"++"EdgeDisjointSubgraphIndex:\n"++show(EdgeDisjointSubgraphIndex)++"\n"];
 output["\n"++"DisjointSubgraphEdgeSet:\n"++show(DisjointSubgraphEdgeSet)++"\n"];
-output["\n"++"EdgeDisjointSubgraphMatrix:\n"++show_array2d_bool(transpose(EdgeDisjointSubgraphMatrix))];
+output["\n"++"EdgeDisjointSubgraphMatrix:\n"++show_array2d_bool(TEdgeDisjointSubgraphMatrix)];
 output["\n"++"--------------------------------------------------------------------------------\n"];
 output["\n"++"ReachabilityMatrix:\n"++show_array2d_bool(ReachabilityMatrix)];
 output["\n"++"================================================================================\n"];
