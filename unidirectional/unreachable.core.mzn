@@ -3,6 +3,7 @@ include "link_set_to_booleans.mzn";
 include "int_set_channel.mzn";
 include "arg_val.mzn";
 include "connected.mzn";
+include "increasing.mzn";
 
 %-------------------------------------------------------------------------------
 
@@ -13,8 +14,8 @@ enum GRAPH_NODES = GN(1..NUM_GRAPH_NODES);
 enum GRAPH_EDGES = GE(1..NUM_GRAPH_EDGES);
 
 array[GRAPH_EDGES] of tuple(GRAPH_NODES,GRAPH_NODES): GRAPH_NODE_PAIRS; % par
-array[GRAPH_EDGES] of GRAPH_NODES: GRAPH_LEAVING_NODE  = [ p.1 | p in GRAPH_NODE_PAIRS ];
-array[GRAPH_EDGES] of GRAPH_NODES: GRAPH_ENTERING_NODE = [ p.2 | p in GRAPH_NODE_PAIRS ];
+array[GRAPH_EDGES] of GRAPH_NODES: GRAPH_LEAVING_NODE  = [ p.1 | p in GRAPH_NODE_PAIRS ]; % par
+array[GRAPH_EDGES] of GRAPH_NODES: GRAPH_ENTERING_NODE = [ p.2 | p in GRAPH_NODE_PAIRS ]; % par
 
 %-------------------------------------------------------------------------------
 
@@ -48,11 +49,11 @@ array[GRAPH_EDGES] of DISJOINT_SUBGRAPH_NODES: DISJOINT_SUBGRAPH_ENTERING_NODE =
 %-------------------------------------------------------------------------------
 
 % To which disjoint subgraph does this node belong?
-array[GRAPH_NODES] of var DISJOINT_SUBGRAPH_INDICES: NodeDisjointSubgraphIndex;
+array[GRAPH_NODES] of var DISJOINT_SUBGRAPH_INDICES: NodeDisjointSubgraphIndex; % RETURN !!!
 % Per disjoint subgraph, what are the nodes that belong to this disjoint subgraph?
 array[DISJOINT_SUBGRAPH_INDICES] of var set of GRAPH_NODES: DisjointSubgraphNodeSet;
 % Mask of nodes per disjoint subgraph. NOTE: includes ephemeral `NO_NODE` node!
-array[DISJOINT_SUBGRAPH_NODES,DISJOINT_SUBGRAPH_INDICES] of var bool: NodeDisjointSubgraphMatrix;
+array[DISJOINT_SUBGRAPH_INDICES,DISJOINT_SUBGRAPH_NODES] of var bool: NodeDisjointSubgraphMatrix;
 % Per disjoint subgraph, if it has nodes, what is the minimal node index in this disjoint subgraph?
 array[DISJOINT_SUBGRAPH_INDICES] of var DISJOINT_SUBGRAPH_NODES: LeastGraphNodeIndexOfDisjointSubgraph;
 
@@ -65,20 +66,19 @@ constraint (
 % Note that the matrix, unlike the set, also tracks an ephemeral NO_NODE node.
       link_set_to_booleans(
         DisjointSubgraphNodeSet[nsi],
-        NodeDisjointSubgraphMatrix[DGn(GRAPH_NODES),nsi]
+        NodeDisjointSubgraphMatrix[nsi,DGn(GRAPH_NODES)]
       )
 % Which of the nodes of this disjoint subgraph has the lowest index?
-/\    LeastGraphNodeIndexOfDisjointSubgraph[nsi] == arg_val(NodeDisjointSubgraphMatrix[..,nsi], true)
+    /\  LeastGraphNodeIndexOfDisjointSubgraph[nsi] == arg_val(NodeDisjointSubgraphMatrix[nsi,..], true)
 % Is this disjoint subgraph empty (and contains only ephemeral node `NO_NODE`),
 % or non-empty (and does *NOT* contain node `NO_NODE`?)
-/\    NodeDisjointSubgraphMatrix[NO_NODE,nsi] == (card(DisjointSubgraphNodeSet[nsi]) == 0)
-/\    NodeDisjointSubgraphMatrix[NO_NODE,nsi] == (LeastGraphNodeIndexOfDisjointSubgraph[nsi] == NO_NODE)
+    /\  NodeDisjointSubgraphMatrix[nsi,NO_NODE] == (DisjointSubgraphNodeSet[nsi] == {})
+    /\  NodeDisjointSubgraphMatrix[nsi,NO_NODE] == (LeastGraphNodeIndexOfDisjointSubgraph[nsi] == NO_NODE)
+    )
 % Enforce global ordering of disjoint subgraphs.
 % This is nessesary, and sufficient, to result in an unique solution.
-/\    symmetry_breaking_constraint(
-          NodeDisjointSubgraphMatrix[NO_NODE,nsi]
-      \/  LeastGraphNodeIndexOfDisjointSubgraph[nsi] == DG^-1(nsi)
-      )
+/\  symmetry_breaking_constraint(
+      increasing(LeastGraphNodeIndexOfDisjointSubgraph)
     )
 );
 
@@ -94,7 +94,7 @@ array[GRAPH_EDGES] of var DISJOINT_SUBGRAPH_EDGE_INDICES: EdgeDisjointSubgraphIn
 % Per disjoint subgraph(*), what are the edges that belong to this disjoint subgraph?
 array[DISJOINT_SUBGRAPH_EDGE_INDICES] of var set of GRAPH_EDGES: DisjointSubgraphEdgeSet;
 % Mask of edges per disjoint subgraph.
-array[GRAPH_EDGES,DISJOINT_SUBGRAPH_INDICES] of var bool: EdgeDisjointSubgraphMatrix;
+array[DISJOINT_SUBGRAPH_INDICES,GRAPH_EDGES] of var bool: EdgeDisjointSubgraphMatrix;
 
 constraint (
 % Channelling between edge subgraph index and subgraph edge set.
@@ -103,7 +103,7 @@ constraint (
 /\  forall (n in DISJOINT_SUBGRAPH_INDICES)(
       link_set_to_booleans(
         DisjointSubgraphEdgeSet[DGe(n)],
-        EdgeDisjointSubgraphMatrix[..,n]
+        EdgeDisjointSubgraphMatrix[n,..]
       )
     )
 % For each edge:
@@ -138,8 +138,8 @@ constraint (
     connected(
         DISJOINT_SUBGRAPH_LEAVING_NODE,
         DISJOINT_SUBGRAPH_ENTERING_NODE,
-        NodeDisjointSubgraphMatrix[..,n],
-        EdgeDisjointSubgraphMatrix[..,n]
+        NodeDisjointSubgraphMatrix[n,..],
+        EdgeDisjointSubgraphMatrix[n,..]
       )
     )
 );
