@@ -41,7 +41,7 @@ enum DISJOINT_SUBGRAPH_INDICES = DG(1..NUM_GRAPH_NODES);
 
 % Either graph node, or an ephemeral node.
 % We really do need that extra ephemeral node for empty disjoint subgraphs
-enum DISJOINT_SUBGRAPH_NODES = DGn(GRAPH_NODES) ++ {NO_NODE};
+enum DISJOINT_SUBGRAPH_NODES = DGn(GRAPH_NODES) ++ {EPH_NODE};
 
 array[GRAPH_EDGES] of DISJOINT_SUBGRAPH_NODES: DISJOINT_SUBGRAPH_LEAVING_NODE = [DGn(GRAPH_LEAVING_NODE[e]) | e in GRAPH_EDGES];
 array[GRAPH_EDGES] of DISJOINT_SUBGRAPH_NODES: DISJOINT_SUBGRAPH_ENTERING_NODE = [DGn(GRAPH_ENTERING_NODE[e]) | e in GRAPH_EDGES];
@@ -52,7 +52,7 @@ array[GRAPH_EDGES] of DISJOINT_SUBGRAPH_NODES: DISJOINT_SUBGRAPH_ENTERING_NODE =
 array[GRAPH_NODES] of var DISJOINT_SUBGRAPH_INDICES: NodeDisjointSubgraphIndex; % RETURN !!!
 % Per disjoint subgraph, what are the nodes that belong to this disjoint subgraph?
 array[DISJOINT_SUBGRAPH_INDICES] of var set of GRAPH_NODES: DisjointSubgraphNodeSet;
-% Mask of nodes per disjoint subgraph. NOTE: includes ephemeral `NO_NODE` node!
+% Mask of nodes per disjoint subgraph. NOTE: includes ephemeral `EPH_NODE` node!
 array[DISJOINT_SUBGRAPH_INDICES,DISJOINT_SUBGRAPH_NODES] of var bool: NodeDisjointSubgraphMatrix;
 % Per disjoint subgraph, if it has nodes, what is the minimal node index in this disjoint subgraph?
 array[DISJOINT_SUBGRAPH_INDICES] of var DISJOINT_SUBGRAPH_NODES: LeastGraphNodeIndexOfDisjointSubgraph;
@@ -61,19 +61,19 @@ constraint (
 % Channelling between node subgraph index and subgraph node set.
     int_set_channel(NodeDisjointSubgraphIndex, DisjointSubgraphNodeSet)
 % For each disjoint subgraph:
-/\  forall (nsi in DISJOINT_SUBGRAPH_INDICES)(
+/\  forall (dsi in DISJOINT_SUBGRAPH_INDICES)(
 % Channeling between disjoint subgraph node set, and a node - disjoint subgraph matrix.
-% Note that the matrix, unlike the set, also tracks an ephemeral NO_NODE node.
-      link_set_to_booleans(
-        DisjointSubgraphNodeSet[nsi],
-        NodeDisjointSubgraphMatrix[nsi,DGn(GRAPH_NODES)]
-      )
+% Note that the matrix, unlike the set, also tracks an ephemeral EPH_NODE node.
+        link_set_to_booleans(
+          DisjointSubgraphNodeSet[dsi],
+          NodeDisjointSubgraphMatrix[dsi,DGn(GRAPH_NODES)]
+        )
 % Which of the nodes of this disjoint subgraph has the lowest index?
-    /\  LeastGraphNodeIndexOfDisjointSubgraph[nsi] == arg_val(NodeDisjointSubgraphMatrix[nsi,..], true)
-% Is this disjoint subgraph empty (and contains only ephemeral node `NO_NODE`),
-% or non-empty (and does *NOT* contain node `NO_NODE`?)
-    /\  NodeDisjointSubgraphMatrix[nsi,NO_NODE] == (DisjointSubgraphNodeSet[nsi] == {})
-    /\  NodeDisjointSubgraphMatrix[nsi,NO_NODE] == (LeastGraphNodeIndexOfDisjointSubgraph[nsi] == NO_NODE)
+    /\  LeastGraphNodeIndexOfDisjointSubgraph[dsi] == arg_val(NodeDisjointSubgraphMatrix[dsi,..], true)
+% Is this disjoint subgraph empty (and contains only ephemeral node `EPH_NODE`),
+% or non-empty (and does *NOT* contain node `EPH_NODE`?)
+    /\  NodeDisjointSubgraphMatrix[dsi,EPH_NODE] == (DisjointSubgraphNodeSet[dsi] == {})
+    /\  NodeDisjointSubgraphMatrix[dsi,EPH_NODE] == (LeastGraphNodeIndexOfDisjointSubgraph[dsi] == EPH_NODE)
     )
 % Enforce global ordering of disjoint subgraphs.
 % This is nessesary, and sufficient, to result in an unique solution.
@@ -87,7 +87,7 @@ constraint (
 % Edge either belongs to one of the disjoint subgraphs, or is missing(*).
 % We really do need that extra ephemeral disjoint subgraph for missing edges,
 % else the logic is clumsier to write.
-enum DISJOINT_SUBGRAPH_EDGE_INDICES = DGe(DISJOINT_SUBGRAPH_INDICES) ++ {NO_EDGE};
+enum DISJOINT_SUBGRAPH_EDGE_INDICES = DGe(DISJOINT_SUBGRAPH_INDICES) ++ {EPH_SUBGRAPH};
 
 % To which disjoint subgraph(*) does this edge belong?
 array[GRAPH_EDGES] of var DISJOINT_SUBGRAPH_EDGE_INDICES: EdgeDisjointSubgraphIndex;
@@ -100,17 +100,17 @@ constraint (
 % Channelling between edge subgraph index and subgraph edge set.
     int_set_channel(EdgeDisjointSubgraphIndex, DisjointSubgraphEdgeSet)
 % Channeling between disjoint subgraph edge set and a edge - disjoint subgraph matrix.
-/\  forall (n in DISJOINT_SUBGRAPH_INDICES)(
+/\  forall (dsi in DISJOINT_SUBGRAPH_INDICES)(
       link_set_to_booleans(
-        DisjointSubgraphEdgeSet[DGe(n)],
-        EdgeDisjointSubgraphMatrix[n,..]
+        DisjointSubgraphEdgeSet[DGe(dsi)],
+        EdgeDisjointSubgraphMatrix[dsi,..]
       )
     )
 % For each edge:
 /\  forall (e in GRAPH_EDGES)(
 % If the edge exists, then it has an actual disjoint subgraph index,
 % and does not belong to the ephemeral disjoint subgraph, and vice versa.
-        GraphEdges[e] == (EdgeDisjointSubgraphIndex[e] != NO_EDGE)
+        GraphEdges[e] == (EdgeDisjointSubgraphIndex[e] != EPH_SUBGRAPH)
 % Likewise, if a (direct!) edge exists, then (1) the leaving node of the edge, (2) the edge and
 % (3) the entering node of the edge, all share the same disjoint subgraph index.
 % Note, however, that if no (direct!) edge exists, it does not tell us anything!
@@ -123,25 +123,23 @@ constraint (
 
 %|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 
-constraint (
-% For each node:
-    forall (n in DISJOINT_SUBGRAPH_INDICES)(
+% For each disjoint subgraph:
+constraint forall (dsi in DISJOINT_SUBGRAPH_INDICES)(
 % Finally! Actually enforce that each disjoint subgraph is actually connected,
 % that every node is reachable from every node of this disjoint subgraph.
 %
 % Note that `connect` requires that the graph has at least one active node,
-% and we've gone out of our way to ensure that, via NO_NODE ephemeral node.
+% and we've gone out of our way to ensure that, via EPH_NODE ephemeral node.
 %
 % WARNING WARNING WARNING
 % `connected()` is internally O(n^2) of the number of nodes,
 % so this predicate has complexity of O(n^3) of the number of nodes,
-    connected(
-        DISJOINT_SUBGRAPH_LEAVING_NODE,
-        DISJOINT_SUBGRAPH_ENTERING_NODE,
-        NodeDisjointSubgraphMatrix[n,..],
-        EdgeDisjointSubgraphMatrix[n,..]
-      )
-    )
+  connected(
+    DISJOINT_SUBGRAPH_LEAVING_NODE,
+    DISJOINT_SUBGRAPH_ENTERING_NODE,
+    NodeDisjointSubgraphMatrix[dsi,..],
+    EdgeDisjointSubgraphMatrix[dsi,..]
+  )
 );
 
 %-------------------------------------------------------------------------------

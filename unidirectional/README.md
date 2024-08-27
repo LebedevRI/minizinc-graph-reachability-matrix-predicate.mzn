@@ -133,7 +133,7 @@ NodeDisjointSubgraphMatrix:
 --------------------------------------------------------------------------------
 
 EdgeDisjointSubgraphIndex:
-[DGe(DG(1)), NO_EDGE, NO_EDGE, NO_EDGE, NO_EDGE, NO_EDGE, DGe(DG(1)), NO_EDGE, NO_EDGE, NO_EDGE, DGe(DG(1)), NO_EDGE, NO_EDGE, NO_EDGE, NO_EDGE, DGe(DG(2)), NO_EDGE, NO_EDGE, NO_EDGE, NO_EDGE, NO_EDGE]
+[DGe(DG(1)), EPH_SUBGRAPH, EPH_SUBGRAPH, EPH_SUBGRAPH, EPH_SUBGRAPH, EPH_SUBGRAPH, DGe(DG(1)), EPH_SUBGRAPH, EPH_SUBGRAPH, EPH_SUBGRAPH, DGe(DG(1)), EPH_SUBGRAPH, EPH_SUBGRAPH, EPH_SUBGRAPH, EPH_SUBGRAPH, DGe(DG(2)), EPH_SUBGRAPH, EPH_SUBGRAPH, EPH_SUBGRAPH, EPH_SUBGRAPH, EPH_SUBGRAPH]
 
 DisjointSubgraphEdgeSet:
 [{GE(1), GE(7), GE(11)}, {GE(16)}, {}, {}, {}, {}, {}, {GE(2), GE(3), GE(4), GE(5), GE(6), GE(8), GE(9), GE(10), GE(12), GE(13), GE(14), GE(15), GE(17), GE(18), GE(19), GE(20), GE(21)}]
