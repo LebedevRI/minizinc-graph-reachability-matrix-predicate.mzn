@@ -62,9 +62,11 @@ constraint (
     int_set_channel(NodeDisjointSubgraphIndex, DisjointSubgraphNodeSet)
 % For each disjoint subgraph:
 /\  forall (dsi in DISJOINT_SUBGRAPH_INDICES)(
+% Each disjoint subgraph has at least one node.
+      exists(NodeDisjointSubgraphMatrix[dsi,..]) == true
 % Channeling between disjoint subgraph node set, and a node - disjoint subgraph matrix.
 % Note that the matrix, unlike the set, also tracks an ephemeral EPH_NODE node.
-        link_set_to_booleans(
+    /\  link_set_to_booleans(
           DisjointSubgraphNodeSet[dsi],
           NodeDisjointSubgraphMatrix[dsi,DGn(GRAPH_NODES)]
         )
