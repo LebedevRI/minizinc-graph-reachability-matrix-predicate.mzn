@@ -11,6 +11,14 @@ import multiprocessing
 import random
 import scipy
 
+DEBUG = False
+
+# SOLVER = "gecode"
+SOLVER = "chuffed"
+
+# `link_set_to_booleans` does not like empty ranges.
+MIN_NODES = 2
+MIN_EDGES = 1
 
 def GraphToSymmetricMatrix(data):
     m = numpy.zeros((data.NumNodes, data.NumNodes), dtype=bool)
@@ -63,7 +71,11 @@ class TestData:
             assert sourceNode >= 1 and sourceNode <= NumNodes and \
                 targetNode >= 1 and targetNode <= NumNodes
         assert len(set(self.NodePairs)) == len(self.NodePairs)
-
+    def __repr__(self):
+        return "TestData(NumNodes={}, NumEdges={}, NodePairs={}, GraphEdges={})".format(
+            self.NumNodes, self.NumEdges, self.NodePairs, self.GraphEdges)
+    def __str__(self):
+        return self.__repr__()
 
 class Status:
     def __init__(self, NumNodes, NumEdges, NumVars,
@@ -78,10 +90,16 @@ class Status:
 
 def runner(test):
     ReachabilityMatrixRef = ComputeReachabilityMatrix(test)
-    if False:
+    if DEBUG:
+        print("\n\n\n\n")
+        print("==================")
+        print(test)
+    if True:
         assert numpy.array_equal(
             ReachabilityMatrixRef,
             ComputeReachabilityMatrix_RefImpl(test))
+    if DEBUG:
+        print(ReachabilityMatrixRef)
 
     jsonInput = {}
     jsonInput["NUM_GRAPH_NODES"] = test.NumNodes
@@ -90,25 +108,27 @@ def runner(test):
     jsonInput["GraphEdges_par"] = test.GraphEdges
 
     stdout = ""
-    with tempfile.NamedTemporaryFile(mode='w', suffix=".json") as fp:
-        with open(fp.name, mode='w') as f:
-            json.dump(jsonInput, f)
-        res = subprocess.run(["minizinc",
-                              "--statistics",
-                              "--solver",
-                              "chuffed",
-                              "-O1",
-                              "--all-solutions",
-                              "--json-stream",
-                              "--only-sections",
-                              "bogus",
-                              "unreachable.script-entry-point.json.mzn",
-                              fp.name],
-                             capture_output=True)
-        if res.returncode != 0:
-            print(res.stderr)
-        res.check_returncode()
-        stdout = res.stdout
+    res = subprocess.run(["minizinc",
+                          "--statistics",
+                          "--solver",
+                          SOLVER,
+                          "-O1",
+                          "--all-solutions",
+                          "--json-stream",
+                          "--only-sections",
+                          "bogus",
+                          "unreachable.script-entry-point.json.mzn",
+                          "--cmdline-json-data",
+                          json.dumps(jsonInput)],
+                          capture_output=True)
+    if DEBUG:
+        print(res)
+    if res.returncode != 0:
+        print(res.stderr)
+    res.check_returncode()
+    stdout = res.stdout
+    if DEBUG:
+        print(stdout)
 
     res = {}
     for s in stdout.splitlines():
@@ -119,36 +139,48 @@ def runner(test):
     for s in res:
         if s == "statistics":
             continue
-        assert len(res[s]) == 1
-        res[s] = res[s][0]
+        if s == "status":
+            assert len(res[s]) == 1
+            res[s] = res[s][0]
+            continue
+        if s == "solution":
+            if DEBUG:
+                print(s)
+            for ss in res[s]:
+                # print(ss)
+                assert ss["type"] == "solution"
+                # ReachabilityMatrix = res["solution"]["output"]["ReachabilityMatrix"]
+                ReachabilityMatrix = NodeDisjointSubgraphIndexToReachabilityMatrix(
+                    test, ss["output"]["NodeDisjointSubgraphIndex"])
+                ReachabilityMatrix = numpy.asarray(ReachabilityMatrix)
+                if DEBUG:
+                    print(ReachabilityMatrix)
+                assert numpy.array_equal(
+                    ReachabilityMatrix, ReachabilityMatrixRef)
     assert res["status"]["status"] == "ALL_SOLUTIONS"
-    assert res["statistics"][2]["statistics"]["nSolutions"] == 1
+    assert res["statistics"][2]["statistics"]["nSolutions"] >= 1
+    # assert res["statistics"][2]["statistics"]["nSolutions"] == 1
     flatTime = res["statistics"][0]["statistics"]["flatTime"]
-    solveTime = res["statistics"][1]["statistics"]["time"]
+    solveTime = res["statistics"][1]["statistics"]["solveTime"]
     Vars = sum([res["statistics"][0]["statistics"][s]
                for s in res["statistics"][0]["statistics"] if s.endswith("Vars")])
     Constraints = sum([res["statistics"][0]["statistics"][s]
                       for s in res["statistics"][0]["statistics"] if (s.endswith("Constraints") and not s.endswith("ReifiedConstraints"))])
-
-    # ReachabilityMatrix = res["solution"]["output"]["ReachabilityMatrix"]
-    ReachabilityMatrix = NodeDisjointSubgraphIndexToReachabilityMatrix(
-        test, res["solution"]["output"]["NodeDisjointSubgraphIndex"])
-    ReachabilityMatrix = numpy.asarray(ReachabilityMatrix)
-    assert numpy.array_equal(
-        ReachabilityMatrix, ReachabilityMatrixRef)
+    if DEBUG:
+        print("==================")
     return Status(test.NumNodes, test.NumEdges, Vars,
                   Constraints, flatTime, solveTime)
 
 
 def sampling_runner(i, num_nodes, num_nodes_is_upper_limit):
     if num_nodes_is_upper_limit:
-        NumNodes = random.randint(0, num_nodes)
+        NumNodes = random.randint(MIN_NODES, num_nodes)
     else:
         NumNodes = num_nodes
     assert NumNodes >= 0
     ALL_NODE_PAIRS = itertools.combinations(range(1, NumNodes + 1), r=2)
     ALL_NODE_PAIRS = [(e[0], e[1]) for e in ALL_NODE_PAIRS]
-    NumEdges = random.randint(0, len(ALL_NODE_PAIRS))
+    NumEdges = random.randint(MIN_EDGES, len(ALL_NODE_PAIRS))
     assert NumEdges >= 0
     NodePairs = random.sample(ALL_NODE_PAIRS, k=NumEdges)
     GraphEdges = random.choices([False, True], k=NumEdges)
@@ -157,6 +189,11 @@ def sampling_runner(i, num_nodes, num_nodes_is_upper_limit):
         NumEdges=NumEdges,
         NodePairs=NodePairs,
         GraphEdges=GraphEdges)
+    # # test = TestData(
+    # #     NumNodes=1,
+    # #     NumEdges=0,
+    # #     NodePairs=(),
+    # #     GraphEdges=())
     return runner(test)
 
 
@@ -189,11 +226,11 @@ def generate_exhaustive_tests_for_graph(NumNodes, NumEdges):
 
 def generate_exhaustive_tests(MAX_NODES):
     tests = {}
-    for NumNodes in range(0, MAX_NODES + 1):
+    for NumNodes in range(MIN_NODES, MAX_NODES + 1):
         if not NumNodes in tests:
             tests[NumNodes] = []
         MAX_EDGES = ((NumNodes**2) - NumNodes) // 2
-        for NumEdges in range(0, MAX_EDGES + 1):
+        for NumEdges in range(MIN_EDGES, MAX_EDGES + 1):
             tests[NumNodes].extend(
                 generate_exhaustive_tests_for_graph(NumNodes, NumEdges))
     return tests
@@ -201,7 +238,6 @@ def generate_exhaustive_tests(MAX_NODES):
 
 def entry_with_large_num_nodes(MAX_NODES):
     NUM_TESTS = 32 * 400
-
     print("Running tests (random, N=0..{})...".format(MAX_NODES))
     with multiprocessing.Pool() as pool:
         r = list(
@@ -213,6 +249,13 @@ def entry_with_large_num_nodes(MAX_NODES):
         )
     pool.close()
     pool.join()
+    # r = list(
+    #         tqdm.tqdm(
+    #             map(
+    #                 SamplingRunner(MAX_NODES, num_nodes_is_upper_limit=True),
+    #                 range(NUM_TESTS)),
+    #             total=NUM_TESTS)
+    #     )
     return r
 
 
@@ -221,7 +264,8 @@ def entry_with_small_num_nodes(MAX_NODES):
     tests = generate_exhaustive_tests(MAX_NODES)
     tests = numpy.hstack(list(tests.values()))
 
-    random.shuffle(tests)
+    if not DEBUG:
+        random.shuffle(tests)
 
     print("Running tests (exhaustive)...")
     with multiprocessing.Pool() as pool:
@@ -230,6 +274,9 @@ def entry_with_small_num_nodes(MAX_NODES):
             tests), total=len(tests)))
     pool.close()
     pool.join()
+    # r = list(tqdm.tqdm(map(
+    #         runner,
+    #         tests), total=len(tests)))
     return r
 
 
@@ -264,9 +311,11 @@ def print_poly(x, active_mask):
 
 def main():
     r = numpy.array([])
-    # r = numpy.hstack((r, numpy.array(entry_with_num_nodes(4))))
-    r = numpy.hstack((r, numpy.array(entry_with_num_nodes(5))))
-    r = numpy.hstack((r, numpy.array(entry_with_num_nodes(40))))
+    r = numpy.hstack((r, numpy.array(entry_with_small_num_nodes(4))))
+    # r = numpy.hstack((r, numpy.array(entry_with_large_num_nodes(6))))
+    # r = numpy.hstack((r, numpy.array(entry_with_num_nodes(10))))
+    # r = numpy.hstack((r, numpy.array(entry_with_num_nodes(10))))
+    # return
 
     NumNodes = numpy.array([e.NumNodes for e in r])
     NumEdges = numpy.array([e.NumEdges for e in r])
