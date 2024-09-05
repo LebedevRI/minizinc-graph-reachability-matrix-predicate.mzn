@@ -17,8 +17,8 @@ DEBUG = False
 SOLVER = "chuffed"
 
 # `link_set_to_booleans` does not like empty ranges.
-MIN_NODES = 2
-MIN_EDGES = 1
+MIN_NODES = 0
+MIN_EDGES = 0
 
 def GraphToSymmetricMatrix(data):
     m = numpy.zeros((data.NumNodes, data.NumNodes), dtype=bool)
