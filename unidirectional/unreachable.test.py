@@ -49,11 +49,11 @@ def ComputeReachabilityMatrix_RefImpl(data):
 
 
 def NodeDisjointSubgraphIndexToReachabilityMatrix(
-        data, NodeDisjointSubgraphIndex):
+        data, NodeRoot):
     m = numpy.zeros((data.NumNodes, data.NumNodes), dtype=bool)
     for j in range(data.NumNodes):
         for i in range(data.NumNodes):
-            if (NodeDisjointSubgraphIndex[i] == NodeDisjointSubgraphIndex[j]):
+            if (NodeRoot[i] == NodeRoot[j]):
                 m[j, i] = 1
     return m
 
@@ -151,7 +151,7 @@ def runner(test):
                 assert ss["type"] == "solution"
                 # ReachabilityMatrix = res["solution"]["output"]["ReachabilityMatrix"]
                 ReachabilityMatrix = NodeDisjointSubgraphIndexToReachabilityMatrix(
-                    test, ss["output"]["NodeDisjointSubgraphIndex"])
+                    test, ss["output"]["NodeRoot"])
                 ReachabilityMatrix = numpy.asarray(ReachabilityMatrix)
                 if DEBUG:
                     print(ReachabilityMatrix)
@@ -239,23 +239,25 @@ def generate_exhaustive_tests(MAX_NODES):
 def entry_with_large_num_nodes(MAX_NODES):
     NUM_TESTS = 32 * 400
     print("Running tests (random, N=0..{})...".format(MAX_NODES))
-    with multiprocessing.Pool() as pool:
+    if DEBUG:
         r = list(
-            tqdm.tqdm(
-                pool.imap_unordered(
-                    SamplingRunner(MAX_NODES, num_nodes_is_upper_limit=True),
-                    range(NUM_TESTS)),
-                total=NUM_TESTS)
-        )
-    pool.close()
-    pool.join()
-    # r = list(
-    #         tqdm.tqdm(
-    #             map(
-    #                 SamplingRunner(MAX_NODES, num_nodes_is_upper_limit=True),
-    #                 range(NUM_TESTS)),
-    #             total=NUM_TESTS)
-    #     )
+                tqdm.tqdm(
+                    map(
+                        SamplingRunner(MAX_NODES, num_nodes_is_upper_limit=True),
+                        range(NUM_TESTS)),
+                    total=NUM_TESTS)
+            )
+    else:
+        with multiprocessing.Pool() as pool:
+            r = list(
+                tqdm.tqdm(
+                    pool.imap_unordered(
+                        SamplingRunner(MAX_NODES, num_nodes_is_upper_limit=True),
+                        range(NUM_TESTS)),
+                    total=NUM_TESTS)
+            )
+        pool.close()
+        pool.join()
     return r
 
 
@@ -268,15 +270,17 @@ def entry_with_small_num_nodes(MAX_NODES):
         random.shuffle(tests)
 
     print("Running tests (exhaustive)...")
-    with multiprocessing.Pool() as pool:
-        r = list(tqdm.tqdm(pool.imap_unordered(
-            runner,
-            tests), total=len(tests)))
-    pool.close()
-    pool.join()
-    # r = list(tqdm.tqdm(map(
-    #         runner,
-    #         tests), total=len(tests)))
+    if DEBUG:
+        r = list(tqdm.tqdm(map(
+                runner,
+                tests), total=len(tests)))
+    else:
+        with multiprocessing.Pool() as pool:
+            r = list(tqdm.tqdm(pool.imap_unordered(
+                runner,
+                tests), total=len(tests)))
+        pool.close()
+        pool.join()
     return r
 
 
@@ -311,9 +315,9 @@ def print_poly(x, active_mask):
 
 def main():
     r = numpy.array([])
-    r = numpy.hstack((r, numpy.array(entry_with_small_num_nodes(4))))
-    # r = numpy.hstack((r, numpy.array(entry_with_large_num_nodes(6))))
-    # r = numpy.hstack((r, numpy.array(entry_with_num_nodes(10))))
+    # r = numpy.hstack((r, numpy.array(entry_with_small_num_nodes(4))))
+    # r = numpy.hstack((r, numpy.array(entry_with_large_num_nodes(5))))
+    r = numpy.hstack((r, numpy.array(entry_with_num_nodes(10))))
     # r = numpy.hstack((r, numpy.array(entry_with_num_nodes(10))))
     # return
 
