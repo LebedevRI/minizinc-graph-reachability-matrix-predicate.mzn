@@ -5,9 +5,6 @@ include "subgraph.mzn";
 predicate fzn_cluster(array[$$E] of $$N: from, array[$$E] of $$N: to,
                       array[$$N] of var $$N: nr, array[$$N] of var bool: ns, array[$$E] of var bool: es) =
     let {
-        int: EPH_NODE = 1 + (if card(index_set(ns)) != 0 then max(index_set(ns)) else 0 endif);
-        set of int: DISJOINT_SUBGRAPH_NODES = index_set(ns) union {EPH_NODE};
-        array[GRAPH_EDGES] of var DISJOINT_SUBGRAPH_NODES: EdgeRoot;
         array[GRAPH_NODES] of var bool: NodeRootnessMask;
         array[GRAPH_NODES] of bool: ALL_GRAPH_NODES = [ true | n in GRAPH_NODES ];
     } in
@@ -15,13 +12,7 @@ predicate fzn_cluster(array[$$E] of $$N: from, array[$$E] of $$N: to,
             ((not ns[n]) -> (nr[n] == n))
         ) /\
         forall (e in GRAPH_EDGES)(
-            es[e] == (EdgeRoot[e] != EPH_NODE)
-        ) /\
-        forall (e in GRAPH_EDGES)(
-            es[e] -> (
-            EdgeRoot[e] == nr[GRAPH_LEAVING_NODE[e]] /\
-            EdgeRoot[e] == nr[GRAPH_ENTERING_NODE[e]]
-            )
+            es[e] -> (nr[GRAPH_LEAVING_NODE[e]] == nr[GRAPH_ENTERING_NODE[e]])
         ) /\
         forall(j in GRAPH_NODES)(
             link_set_to_booleans(array2set(nr), NodeRootnessMask)
