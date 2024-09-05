@@ -78,9 +78,9 @@ output["\n"++"GraphNodes:\n"++show_array2d_bool(array2d(GRAPH_NODES, 1..1, Graph
 output["\n"++"GraphEdges:\n"++show_array2d_bool(array2d(GRAPH_EDGES, 1..1, GraphEdges))];
 output["\n"++"--------------------------------------------------------------------------------\n"];
 output["\n"++"NodeRoot:\n"++show(NodeRoot)++"\n"];
-output["\n"++"EdgeRoot:\n"++show(EdgeRoot)++"\n"];
+% output["\n"++"EdgeRoot:\n"++show(EdgeRoot)++"\n"];
 output["\n"++"--------------------------------------------------------------------------------\n"];
-output["\n"++"NodeRootnessMask:\n"++show_array2d_bool(array2d(GRAPH_NODES, 1..1, NodeRootnessMask))];
+% output["\n"++"NodeRootnessMask:\n"++show_array2d_bool(array2d(GRAPH_NODES, 1..1, NodeRootnessMask))];
 output["\n"++"--------------------------------------------------------------------------------\n"];
 output["\n"++"ReachabilityMatrix:\n"++show_array2d_bool(ReachabilityMatrix)];
 output["\n"++"================================================================================\n"];

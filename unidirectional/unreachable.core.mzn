@@ -31,55 +31,56 @@ constraint subgraph(
 % \/ The Algorithm
 %-------------------------------------------------------------------------------
 
-% Either graph node, or an ephemeral node. % We need that extra ephemeral node
-% as a parent node for any and all non-chosen edeges.
-enum DISJOINT_SUBGRAPH_NODES = DGn(GRAPH_NODES) ++ {EPH_NODE};
+/** @group globals.graph
+    Clusterize the subgraph \a ns and \a es of a given undirected graph into disjoint subgraphs,
+    and for each graph node, record the root node of distjoint subgraph containing said node in \a nr.
 
-%-------------------------------------------------------------------------------
-
-array[GRAPH_NODES] of var GRAPH_NODES: NodeRoot;
-array[GRAPH_EDGES] of var DISJOINT_SUBGRAPH_NODES: EdgeRoot;
-
-constraint
-  forall (n in GRAPH_NODES)(
-    ((not GraphNodes[n]) -> (NodeRoot[n] == n))
-  ) /\
-  forall (e in GRAPH_EDGES)(
-    GraphEdges[e] == (EdgeRoot[e] != EPH_NODE)
-  ) /\
-  forall (e in GRAPH_EDGES)(
-    GraphEdges[e] -> (
-        EdgeRoot[e] == DGn(NodeRoot[GRAPH_LEAVING_NODE[e]])
-    /\  EdgeRoot[e] == DGn(NodeRoot[GRAPH_ENTERING_NODE[e]])
-    )
-  );
-
-%|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
-
-% Is this node a root node for some disjoint subgraph?
-array[GRAPH_NODES] of var bool: NodeRootnessMask;
-
-constraint forall(j in GRAPH_NODES)(
-  link_set_to_booleans(array2set(NodeRoot), NodeRootnessMask)
-);
-
-% All nodes must participate.
-array[GRAPH_NODES] of bool: ALL_GRAPH_NODES = [ true | n in GRAPH_NODES ];
-
-constraint
-  reachable_multiroot(
-    GRAPH_LEAVING_NODE,
-    GRAPH_ENTERING_NODE,
-    NodeRootnessMask,
-    ALL_GRAPH_NODES,
-    GraphEdges
-  );
-
+    @param from: the leaving node for each edge
+    @param to: the entering node for each edge
+    @param nr: a node, that is a root node for the current node's disjoint subgraph
+    @param ns: a Boolean for each node whether it is in the subgraph
+    @param es: a Boolean for each edge whether it is in the subgraph
+*/
+predicate cluster(array[$$E] of $$N: from, array[$$E] of $$N: to,
+                         array[$$N] of var $$N: nr, array[$$N] of var bool: ns, array[$$E] of var bool: es) =
+    let {
+      int: EPH_NODE = 1 + max(index_set(ns));
+      set of int: DISJOINT_SUBGRAPH_NODES = index_set(ns) union {EPH_NODE};
+      array[GRAPH_EDGES] of var DISJOINT_SUBGRAPH_NODES: EdgeRoot;
+      array[GRAPH_NODES] of var bool: NodeRootnessMask;
+      array[GRAPH_NODES] of bool: ALL_GRAPH_NODES = [ true | n in GRAPH_NODES ];
+    } in
+      forall (n in GRAPH_NODES)(
+        ((not ns[n]) -> (nr[n] == n))
+      ) /\
+      forall (e in GRAPH_EDGES)(
+        es[e] == (EdgeRoot[e] != EPH_NODE)
+      ) /\
+      forall (e in GRAPH_EDGES)(
+        es[e] -> (
+          EdgeRoot[e] == nr[GRAPH_LEAVING_NODE[e]] /\
+          EdgeRoot[e] == nr[GRAPH_ENTERING_NODE[e]]
+        )
+      ) /\
+      forall(j in GRAPH_NODES)(
+        link_set_to_booleans(array2set(nr), NodeRootnessMask)
+      ) /\
+      reachable_multiroot(
+        from,
+        to,
+        NodeRootnessMask,
+        ALL_GRAPH_NODES,
+        es
+      );
 
 %-------------------------------------------------------------------------------
 % /\ The Algorithm
 %===============================================================================
 % \/ User code
 %-------------------------------------------------------------------------------
+
+array[GRAPH_NODES] of var GRAPH_NODES: NodeRoot;
+
+constraint cluster(GRAPH_LEAVING_NODE, GRAPH_ENTERING_NODE, NodeRoot, GraphNodes, GraphEdges);
 
 solve :: int_search(NodeRoot, input_order, indomain_min) satisfy;
