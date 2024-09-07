@@ -10,6 +10,8 @@ import tqdm
 import multiprocessing
 import random
 import scipy
+import math
+import threading
 
 DEBUG = False
 
@@ -19,6 +21,7 @@ SOLVER = "chuffed"
 # `link_set_to_booleans` does not like empty ranges.
 MIN_NODES = 0
 MIN_EDGES = 0
+
 
 def GraphToSymmetricMatrix(data):
     m = numpy.zeros((data.NumNodes, data.NumNodes), dtype=bool)
@@ -71,11 +74,14 @@ class TestData:
             assert sourceNode >= 1 and sourceNode <= NumNodes and \
                 targetNode >= 1 and targetNode <= NumNodes
         assert len(set(self.NodePairs)) == len(self.NodePairs)
+
     def __repr__(self):
         return "TestData(NumNodes={}, NumEdges={}, NodePairs={}, GraphEdges={})".format(
             self.NumNodes, self.NumEdges, self.NodePairs, self.GraphEdges)
+
     def __str__(self):
         return self.__repr__()
+
 
 class Status:
     def __init__(self, NumNodes, NumEdges, NumVars,
@@ -120,7 +126,7 @@ def runner(test):
                           "unreachable.script-entry-point.json.mzn",
                           "--cmdline-json-data",
                           json.dumps(jsonInput)],
-                          capture_output=True)
+                         capture_output=True)
     if DEBUG:
         print(res)
     if res.returncode != 0:
@@ -168,6 +174,7 @@ def runner(test):
                       for s in res["statistics"][0]["statistics"] if (s.endswith("Constraints") and not s.endswith("ReifiedConstraints"))])
     if DEBUG:
         print("==================")
+    bar_queue.put_nowait(1)
     return Status(test.NumNodes, test.NumEdges, Vars,
                   Constraints, flatTime, solveTime)
 
@@ -236,28 +243,56 @@ def generate_exhaustive_tests(MAX_NODES):
     return tests
 
 
+class RepeatTimer(threading.Timer):
+    def run(self):
+        while not self.finished.wait(self.interval):
+            self.function(*self.args, **self.kwargs)
+
+
+def refresh_bar(pbar):
+    pbar.refresh()
+
+
+def update_bar(total):
+    pbar = tqdm.tqdm(total=total, mininterval=math.inf, maxinterval=math.inf, miniters=math.inf)
+    pbar.monitor_interval = 0
+    bar_timer = RepeatTimer(1, refresh_bar, args=(pbar,))
+    bar_timer.start()
+    for step in iter(bar_queue.get, None):
+        pbar.update(step)
+    bar_timer.cancel()
+    pbar.close()
+
+
 def entry_with_large_num_nodes(MAX_NODES):
     NUM_TESTS = 32 * 400
+    chunksize = math.ceil(NUM_TESTS / multiprocessing.cpu_count())
+    NUM_TESTS = multiprocessing.cpu_count() * chunksize
     print("Running tests (random, N=0..{})...".format(MAX_NODES))
+
+    global bar_queue
+    bar_queue = multiprocessing.Queue()
+    bar_process = multiprocessing.Process(target=update_bar, args=(NUM_TESTS,))
+    bar_process.start()
+
     if DEBUG:
-        r = list(
-                tqdm.tqdm(
-                    map(
-                        SamplingRunner(MAX_NODES, num_nodes_is_upper_limit=True),
-                        range(NUM_TESTS)),
-                    total=NUM_TESTS)
-            )
+        r = list(map(SamplingRunner(
+            MAX_NODES, num_nodes_is_upper_limit=True), range(NUM_TESTS)))
     else:
         with multiprocessing.Pool() as pool:
             r = list(
-                tqdm.tqdm(
-                    pool.imap_unordered(
-                        SamplingRunner(MAX_NODES, num_nodes_is_upper_limit=True),
-                        range(NUM_TESTS)),
-                    total=NUM_TESTS)
-            )
+                pool.imap_unordered(
+                    SamplingRunner(
+                        MAX_NODES,
+                        num_nodes_is_upper_limit=True),
+                    range(NUM_TESTS),
+                    chunksize=chunksize))
         pool.close()
         pool.join()
+
+    bar_queue.put(None)
+    bar_process.join()
+
     return r
 
 
@@ -270,17 +305,24 @@ def entry_with_small_num_nodes(MAX_NODES):
         random.shuffle(tests)
 
     print("Running tests (exhaustive)...")
+
+    global bar_queue
+    bar_queue = multiprocessing.Queue()
+    bar_process = multiprocessing.Process(target=update_bar, args=(len(tests),))
+    bar_process.start()
+
+    chunksize = math.ceil(len(tests) / multiprocessing.cpu_count())
     if DEBUG:
-        r = list(tqdm.tqdm(map(
-                runner,
-                tests), total=len(tests)))
+        r = list(map(runner, tests))
     else:
         with multiprocessing.Pool() as pool:
-            r = list(tqdm.tqdm(pool.imap_unordered(
-                runner,
-                tests), total=len(tests)))
+            r = list(pool.imap_unordered(runner, tests, chunksize=chunksize))
         pool.close()
         pool.join()
+
+    bar_queue.put(None)
+    bar_process.join()
+
     return r
 
 
@@ -316,7 +358,7 @@ def print_poly(x, active_mask):
 def main():
     r = numpy.array([])
     # r = numpy.hstack((r, numpy.array(entry_with_small_num_nodes(4))))
-    # r = numpy.hstack((r, numpy.array(entry_with_large_num_nodes(5))))
+    # r = numpy.hstack((r, numpy.array(entry_with_small_num_nodes(5))))
     r = numpy.hstack((r, numpy.array(entry_with_num_nodes(10))))
     # r = numpy.hstack((r, numpy.array(entry_with_num_nodes(10))))
     # return
