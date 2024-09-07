@@ -14,9 +14,7 @@ predicate fzn_cluster(array[$$E] of $$N: from, array[$$E] of $$N: to,
         forall (e in index_set(es))(
             es[e] -> (nr[from[e]] == nr[to[e]])
         ) /\
-        forall(j in index_set(ns))(
-            link_set_to_booleans(array2set(nr), NodeRootnessMask)
-        ) /\
+        link_set_to_booleans(array2set(nr), NodeRootnessMask) /\
         reachable_multiroot(
             from,
             to,
