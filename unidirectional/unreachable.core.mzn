@@ -24,8 +24,8 @@ constraint subgraph(
   GraphEdges
 );
 
-array[GRAPH_NODES] of var GRAPH_NODES: NodeRoot;
+array[GRAPH_NODES] of var 1..NUM_GRAPH_NODES: ClusterIndex;
 
-constraint cluster(GRAPH_LEAVING_NODE, GRAPH_ENTERING_NODE, NodeRoot, GraphNodes, GraphEdges);
+constraint cluster(GRAPH_LEAVING_NODE, GRAPH_ENTERING_NODE, ClusterIndex, GraphNodes, GraphEdges);
 
-solve :: int_search(NodeRoot, input_order, indomain_min) satisfy;
+solve :: int_search(ClusterIndex, input_order, indomain_min) satisfy;

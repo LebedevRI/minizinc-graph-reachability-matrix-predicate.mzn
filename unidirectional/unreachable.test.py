@@ -52,11 +52,11 @@ def ComputeReachabilityMatrix_RefImpl(data):
 
 
 def NodeDisjointSubgraphIndexToReachabilityMatrix(
-        data, NodeRoot):
+        data, ClusterIndex):
     m = numpy.zeros((data.NumNodes, data.NumNodes), dtype=bool)
     for j in range(data.NumNodes):
         for i in range(data.NumNodes):
-            if (NodeRoot[i] == NodeRoot[j]):
+            if (ClusterIndex[i] == ClusterIndex[j]):
                 m[j, i] = 1
     return m
 
@@ -157,7 +157,7 @@ def runner(test):
                 assert ss["type"] == "solution"
                 # ReachabilityMatrix = res["solution"]["output"]["ReachabilityMatrix"]
                 ReachabilityMatrix = NodeDisjointSubgraphIndexToReachabilityMatrix(
-                    test, ss["output"]["NodeRoot"])
+                    test, ss["output"]["ClusterIndex"])
                 ReachabilityMatrix = numpy.asarray(ReachabilityMatrix)
                 if DEBUG:
                     print(ReachabilityMatrix)
@@ -165,7 +165,7 @@ def runner(test):
                     ReachabilityMatrix, ReachabilityMatrixRef)
     assert res["status"]["status"] == "ALL_SOLUTIONS"
     assert res["statistics"][2]["statistics"]["nSolutions"] >= 1
-    # assert res["statistics"][2]["statistics"]["nSolutions"] == 1
+    assert res["statistics"][2]["statistics"]["nSolutions"] == 1
     flatTime = res["statistics"][0]["statistics"]["flatTime"]
     solveTime = res["statistics"][1]["statistics"]["solveTime"]
     Vars = sum([res["statistics"][0]["statistics"][s]
@@ -357,7 +357,7 @@ def print_poly(x, active_mask):
 
 def main():
     r = numpy.array([])
-    # r = numpy.hstack((r, numpy.array(entry_with_small_num_nodes(4))))
+    r = numpy.hstack((r, numpy.array(entry_with_small_num_nodes(4))))
     # r = numpy.hstack((r, numpy.array(entry_with_small_num_nodes(5))))
     r = numpy.hstack((r, numpy.array(entry_with_num_nodes(10))))
     # r = numpy.hstack((r, numpy.array(entry_with_num_nodes(10))))

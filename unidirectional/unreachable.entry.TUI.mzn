@@ -62,7 +62,7 @@ constraint forall (c in GRAPH_NODES)(
 );
 
 constraint forall (j,i in GRAPH_NODES where i > j)(
-  ReachabilityMatrix[j,i] == (NodeRoot[i] == NodeRoot[j])
+  ReachabilityMatrix[j,i] == (ClusterIndex[i] == ClusterIndex[j])
 );
 
 predicate transpose(array[$$J, $$I] of var bool: x, array[$$I, $$J] of var bool: t) =
@@ -77,7 +77,7 @@ output["\n"++"------------------------------------------------------------------
 output["\n"++"GraphNodes:\n"++show_array2d_bool(array2d(GRAPH_NODES, 1..1, GraphNodes))];
 output["\n"++"GraphEdges:\n"++show_array2d_bool(array2d(GRAPH_EDGES, 1..1, GraphEdges))];
 output["\n"++"--------------------------------------------------------------------------------\n"];
-output["\n"++"NodeRoot:\n"++show(NodeRoot)++"\n"];
+output["\n"++"ClusterIndex:\n"++show(ClusterIndex)++"\n"];
 % output["\n"++"EdgeRoot:\n"++show(EdgeRoot)++"\n"];
 output["\n"++"--------------------------------------------------------------------------------\n"];
 % output["\n"++"NodeRootnessMask:\n"++show_array2d_bool(array2d(GRAPH_NODES, 1..1, NodeRootnessMask))];
