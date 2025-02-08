@@ -19,7 +19,7 @@ DEBUG = False
 SOLVER = "chuffed"
 
 # `link_set_to_booleans` does not like empty ranges.
-MIN_NODES = 0
+MIN_NODES = 1
 MIN_EDGES = 0
 
 
@@ -155,9 +155,8 @@ def runner(test):
             for ss in res[s]:
                 # print(ss)
                 assert ss["type"] == "solution"
-                # ReachabilityMatrix = res["solution"]["output"]["ReachabilityMatrix"]
-                ReachabilityMatrix = NodeDisjointSubgraphIndexToReachabilityMatrix(
-                    test, ss["output"]["ClusterIndex"])
+                ReachabilityMatrix = ss["output"]["ReachabilityMatrix"]
+                # ReachabilityMatrix = NodeDisjointSubgraphIndexToReachabilityMatrix(test, ss["output"]["ClusterIndex"])
                 ReachabilityMatrix = numpy.asarray(ReachabilityMatrix)
                 if DEBUG:
                     print(ReachabilityMatrix)
@@ -357,9 +356,9 @@ def print_poly(x, active_mask):
 
 def main():
     r = numpy.array([])
-    r = numpy.hstack((r, numpy.array(entry_with_small_num_nodes(4))))
-    # r = numpy.hstack((r, numpy.array(entry_with_small_num_nodes(5))))
-    r = numpy.hstack((r, numpy.array(entry_with_num_nodes(10))))
+    # r = numpy.hstack((r, numpy.array(entry_with_small_num_nodes(4))))
+    r = numpy.hstack((r, numpy.array(entry_with_small_num_nodes(5))))
+    #r = numpy.hstack((r, numpy.array(entry_with_num_nodes(10))))
     # r = numpy.hstack((r, numpy.array(entry_with_num_nodes(10))))
     # return
 

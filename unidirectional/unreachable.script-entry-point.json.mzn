@@ -19,8 +19,8 @@ constraint forall (n in GRAPH_NODES)(
 
 %-------------------------------------------------------------------------------
 
-constraint output_to_json_section("ClusterIndex", ClusterIndex);
-constraint output_to_section("ClusterIndex", "");
+constraint output_to_json_section("ReachabilityMatrix", ReachabilityMatrix);
+constraint output_to_section("ReachabilityMatrix", "");
 constraint output_to_section("raw", "");
 constraint output_to_section("default", "");
 output[""];

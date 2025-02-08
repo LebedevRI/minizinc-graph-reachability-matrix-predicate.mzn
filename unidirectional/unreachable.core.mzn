@@ -24,8 +24,8 @@ constraint subgraph(
   GraphEdges
 );
 
-array[GRAPH_NODES] of var 1..NUM_GRAPH_NODES: ClusterIndex;
+array[GRAPH_NODES,GRAPH_NODES] of var bool: ReachabilityMatrix;
 
-constraint cluster(GRAPH_LEAVING_NODE, GRAPH_ENTERING_NODE, ClusterIndex, GraphNodes, GraphEdges);
+constraint cluster(GRAPH_LEAVING_NODE, GRAPH_ENTERING_NODE, ReachabilityMatrix, GraphNodes, GraphEdges);
 
-solve :: int_search(ClusterIndex, input_order, indomain_min) satisfy;
+% solve :: int_search(ClusterIndex, input_order, indomain_min) satisfy;

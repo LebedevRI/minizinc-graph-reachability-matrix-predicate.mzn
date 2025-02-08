@@ -4,7 +4,7 @@ include "unreachable.core.mzn";
 
 %-------------------------------------------------------------------------------
 
-NUM_GRAPH_NODES = 7; % par
+NUM_GRAPH_NODES = 50; % par
 NUM_GRAPH_EDGES = length(j,i in GRAPH_NODES where i > j)(1); % par
 GRAPH_NODE_PAIRS = [ (j,i) | j,i in GRAPH_NODES where i > j ]; % par
 
@@ -51,20 +51,6 @@ constraint forall (e in GRAPH_EDGES)(
 
 %-------------------------------------------------------------------------------
 
-array[GRAPH_NODES,GRAPH_NODES] of var bool: ReachabilityMatrix;
-
-constraint symmetry_breaking_constraint(forall (j,i in GRAPH_NODES where i > j)(
-  ReachabilityMatrix[i,j] == ReachabilityMatrix[j,i]
-));
-
-constraint forall (c in GRAPH_NODES)(
-  ReachabilityMatrix[c,c] == true
-);
-
-constraint forall (j,i in GRAPH_NODES where i > j)(
-  ReachabilityMatrix[j,i] == (ClusterIndex[i] == ClusterIndex[j])
-);
-
 predicate transpose(array[$$J, $$I] of var bool: x, array[$$I, $$J] of var bool: t) =
   forall(j in index_set_1of2(x), i in index_set_2of2(x))(
     t[i,j] == x[j,i]
@@ -77,7 +63,7 @@ output["\n"++"------------------------------------------------------------------
 output["\n"++"GraphNodes:\n"++show_array2d_bool(array2d(GRAPH_NODES, 1..1, GraphNodes))];
 output["\n"++"GraphEdges:\n"++show_array2d_bool(array2d(GRAPH_EDGES, 1..1, GraphEdges))];
 output["\n"++"--------------------------------------------------------------------------------\n"];
-output["\n"++"ClusterIndex:\n"++show(ClusterIndex)++"\n"];
+% output["\n"++"ClusterIndex:\n"++show(ClusterIndex)++"\n"];
 % output["\n"++"EdgeRoot:\n"++show(EdgeRoot)++"\n"];
 output["\n"++"--------------------------------------------------------------------------------\n"];
 % output["\n"++"NodeRootnessMask:\n"++show_array2d_bool(array2d(GRAPH_NODES, 1..1, NodeRootnessMask))];
