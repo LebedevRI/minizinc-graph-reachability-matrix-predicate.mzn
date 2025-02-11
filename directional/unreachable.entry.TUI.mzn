@@ -4,7 +4,7 @@ include "unreachable.core.mzn";
 
 %-------------------------------------------------------------------------------
 
-NUM_GRAPH_NODES = 3; % par
+NUM_GRAPH_NODES = 10; % par
 NUM_GRAPH_EDGES = length(j,i in GRAPH_NODES where i > j)(1); % par
 GRAPH_NODE_PAIRS = [ (j,i) | j,i in GRAPH_NODES where i > j ]; % par
 
@@ -17,10 +17,7 @@ constraint forall (c in GRAPH_NODES)(
 );
 
 constraint forall (j,i in GRAPH_NODES)(
-  let {
-  } in
-   HardWires[j,i] == ((j,i) == (1,2) \/ (j,i) == (1,3))
-%   HardWires[m,M] == false
+  HardWires[j,i] == ((enum2int(j),enum2int(i)) == (1,2) \/ (enum2int(j),enum2int(i)) == (1,3))
 );
 
 %-------------------------------------------------------------------------------
