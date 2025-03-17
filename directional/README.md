@@ -4,58 +4,40 @@
 $ ./unreachable.test.py 
 Generating tests (exhaustive, N=0..3)...
 Running tests (exhaustive)...
-100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 739/739 [00:02<00:00, 253.14it/s]
+100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 736/736 [00:02<00:00, 278.85it/s]
 Running tests (random, N=0..10)...
-100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 12800/12800 [01:03<00:00, 202.68it/s]
-
-Compile time big-O: 
- + 5.28e-21*NumNodes^1
- + 1.78e-26*NumNodes^2
- + 1.46e-24*NumEdges^3
-
-      message: `gtol` termination condition is satisfied.
-     success: True
-      status: 1
-         fun: [-6.829e-03 -8.439e-03 ...  9.487e-02  4.764e-02]
-           x: [ 9.032e-02  5.280e-21  1.776e-26  7.848e-05  2.107e-04
-                1.271e-05  1.465e-24]
-        cost: 1.1047256825654912
-         jac: [[ 1.000e+00  3.000e+00 ...  2.500e+01  1.250e+02]
-               [ 1.000e+00  3.000e+00 ...  1.600e+01  6.400e+01]
-               ...
-               [ 1.000e+00  8.000e+00 ...  2.209e+03  1.038e+05]
-               [ 1.000e+00  1.000e+00 ...  0.000e+00  0.000e+00]]
-        grad: [-3.891e-14  1.475e+01  8.862e+01  1.904e-12 -1.403e-13
-                1.194e-11  1.277e+05]
-  optimality: 1.4033219031261979e-13
- active_mask: [ 0 -1 -1  0  0  0 -1]
-        nfev: 36
-        njev: 36
-
-Solve time big-O: 
- + 4.90e-22 
- + 2.45e-19*NumNodes^1
- + 7.62e-18*NumNodes^2
- + 1.10e-14*NumEdges^1
-
-      message: `ftol` termination condition is satisfied.
-     success: True
-      status: 2
-         fun: [ 1.443e-04  1.172e-04 ...  5.477e-03  2.654e-06]
-           x: [ 4.900e-22  2.454e-19  7.616e-18  2.654e-06  1.101e-14
-                2.599e-06  6.143e-08]
-        cost: 0.1005067471587417
-         jac: [[ 1.000e+00  3.000e+00 ...  2.500e+01  1.250e+02]
-               [ 1.000e+00  3.000e+00 ...  1.600e+01  6.400e+01]
-               ...
-               [ 1.000e+00  8.000e+00 ...  2.209e+03  1.038e+05]
-               [ 1.000e+00  1.000e+00 ...  0.000e+00  0.000e+00]]
-        grad: [ 4.406e+00  2.441e+01  1.012e+02  7.762e-06  4.249e+01
-               -1.608e-05  9.270e-04]
-  optimality: 1.6080710135923937e-05
- active_mask: [-1 -1 -1  0 -1  0  0]
-        nfev: 38
-        njev: 38
+100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 128000/128000 [10:26<00:00, 204.47it/s]
+/home/lebedevri/.local/lib/python3.13/site-packages/big_o/complexities.py:211: RuntimeWarning: divide by zero encountered in log
+  return np.log(t)
+/home/lebedevri/.local/lib/python3.13/site-packages/big_o/complexities.py:243: RuntimeWarning: divide by zero encountered in log
+  return np.log(t)
+| Name                                   | NumNodes (big-O)   | ... (formula)                      | NumEdges (big-O)    | ... (formula)                            |
+|----------------------------------------|--------------------|-------------------------------------|--------------------|------------------------------------------|
+| (flat) paths                           | Constant           | -0                                  | Constant           | -0                                       |
+| (flat) flatBoolVars                    | Cubic              | 0.67 + 1.1*NumNodes^3               | Linearithmic       | 29 + 5.2*NumEdges*log(NumEdges)          |
+| (flat) flatIntVars                     | Cubic              | 6.1 + 0.19*NumNodes^3               | Linear             | -1.6 + 3.9*NumEdges                      |
+| (flat) flatBoolConstraints             | Cubic              | 7.6 + 0.7*NumNodes^3                | Linear             | -12 + 13*NumEdges                        |
+| (flat) flatIntConstraints              | Cubic              | 4.9 + 0.51*NumNodes^3               | Linear             | -24 + 11*NumEdges                        |
+| (flat) evaluatedReifiedConstraints     | Quadratic          | -14 + 2.3*NumNodes^2                | Linear             | 14 + 3.7*NumEdges                        |
+| (flat) evaluatedHalfReifiedConstraints | Cubic              | -3.9 + 0.2*NumNodes^3               | Linearithmic       | -3.5 + 1*NumEdges*log(NumEdges)          |
+| (flat) flatTime                        | Cubic              | 0.087 + 0.00012*NumNodes^3          | Linearithmic       | 0.098 + 0.00046*NumEdges*log(NumEdges)   |
+| (solve) nodes                          | Cubic              | -3.5E+02 + 3.4*NumNodes^3           | Quadratic          | -85 + 1.2*NumEdges^2                     |
+| (solve) failures                       | Cubic              | -53 + 0.53*NumNodes^3               | Cubic              | 17 + 0.0027*NumEdges^3                   |
+| (solve) restarts                       | Constant           | -0                                  | Constant           | -0                                       |
+| (solve) variables                      | Cubic              | -1.1E+02 + 7.4*NumNodes^3           | Linear             | -25 + 1.3E+02*NumEdges                   |
+| (solve) intVars                        | Cubic              | 10 + 0.2*NumNodes^3                 | Linear             | 3.5 + 4*NumEdges                         |
+| (solve) boolVariables                  | Cubic              | -1.2E+02 + 7.2*NumNodes^3           | Linear             | -30 + 1.2E+02*NumEdges                   |
+| (solve) propagators                    | Cubic              | 8.4 + 0.26*NumNodes^3               | Linear             | -1.8 + 5.2*NumEdges                      |
+| (solve) propagations                   | Cubic              | -7.1E+03 + 61*NumNodes^3            | Quadratic          | -2.8E+03 + 21*NumEdges^2                 |
+| (solve) peakDepth                      | Cubic              | -7.7 + 0.18*NumNodes^3              | Quadratic          | 4.5 + 0.065*NumEdges^2                   |
+| (solve) nogoods                        | Cubic              | -53 + 0.53*NumNodes^3               | Cubic              | 17 + 0.0027*NumEdges^3                   |
+| (solve) backjumps                      | Cubic              | -2.9E+02 + 2.7*NumNodes^3           | Quadratic          | -66 + 0.93*NumEdges^2                    |
+| (solve) peakMem                        | Constant           | -0                                  | Constant           | -0                                       |
+| (solve) time                           | Cubic              | 0.086 + 0.00015*NumNodes^3          | Linearithmic       | 0.097 + 0.00062*NumEdges*log(NumEdges)   |                                    | (solve) initTime                       | Cubic              | 0.088 + 0.00013*NumNodes^3          | Linearithmic       | 0.1 + 0.0005*NumEdges*log(NumEdges)      |
+| (solve) solveTime                      | Cubic              | -0.0024 + 2.1E-05*NumNodes^3        | Quadratic          | -0.00079 + 7.5E-06*NumEdges^2            |
+| (solve) baseMem                        | Constant           | -0                                  | Constant           | -0                                       |
+| (solve) trailMem                       | Cubic              | -0.00065 + 1.9E-05*NumNodes^3       | Linearithmic       | -0.00085 + 0.0001*NumEdges*log(NumEdges) |
+| (flat) eliminatedImplications          | Linearithmic       | -0.68 + 0.27*NumNodes*log(NumNodes) | Logarithmic        | -0.6 + 1.3*log(NumEdges)                 |
 ```
 
 # `$ minizinc --all-solutions unreachable.entry.TUI.mzn`

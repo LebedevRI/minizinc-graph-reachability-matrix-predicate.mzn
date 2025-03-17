@@ -1,17 +1,21 @@
 #!/usr/bin/python3
 
-import numpy
+import io
 import itertools
-import networkx
 import json
-import tempfile
-import subprocess
-import tqdm
+import math
 import multiprocessing
 import random
-import scipy
-import math
+import re
+import subprocess
 import threading
+
+import numpy
+import networkx
+import tqdm
+from tabulate import tabulate
+import pandas as pd
+import big_o
 
 DEBUG = False
 
@@ -19,13 +23,13 @@ DEBUG = False
 SOLVER = "chuffed"
 
 # `link_set_to_booleans` does not like empty ranges.
-MIN_NODES = 1
-MIN_EDGES = 0
+MIN_NODES = 2
+MIN_EDGES = 1
 
 
 def GraphToMatrix(data):
     m = numpy.zeros((data.NumNodes, data.NumNodes), dtype=bool)
-    for (edgeIndice, edgeValue) in enumerate(data.GraphEdges):
+    for edgeIndice, edgeValue in enumerate(data.GraphEdges):
         sourceNode = data.NodePairs[edgeIndice][0]
         targetNode = data.NodePairs[edgeIndice][1]
         m[sourceNode - 1, targetNode - 1] = edgeValue
@@ -60,28 +64,25 @@ class TestData:
         assert self.NumNodes >= 0
         assert self.NumEdges >= 0
         assert self.NumEdges == len(self.GraphEdges)
-        for (sourceNode, targetNode) in NodePairs:
-            assert sourceNode >= 1 and sourceNode <= NumNodes and \
-                targetNode >= 1 and targetNode <= NumNodes
+        for sourceNode, targetNode in NodePairs:
+            assert (
+                sourceNode >= 1
+                and sourceNode <= NumNodes
+                and targetNode >= 1
+                and targetNode <= NumNodes
+            )
         assert len(set(self.NodePairs)) == len(self.NodePairs)
 
     def __repr__(self):
         return "TestData(NumNodes={}, NumEdges={}, NodePairs={}, GraphEdges={})".format(
-            self.NumNodes, self.NumEdges, self.NodePairs, self.GraphEdges)
+            self.NumNodes,
+            self.NumEdges,
+            self.NodePairs,
+            self.GraphEdges,
+        )
 
     def __str__(self):
         return self.__repr__()
-
-
-class Status:
-    def __init__(self, NumNodes, NumEdges, NumVars,
-                 NumConstraints, FlatTime, SolveTime):
-        self.NumNodes = NumNodes
-        self.NumEdges = NumEdges
-        self.NumVars = NumVars
-        self.NumConstraints = NumConstraints
-        self.FlatTime = FlatTime
-        self.SolveTime = SolveTime
 
 
 def runner(test):
@@ -93,7 +94,8 @@ def runner(test):
     if True:
         assert numpy.array_equal(
             ReachabilityMatrixRef,
-            ComputeReachabilityMatrix_RefImpl(test))
+            ComputeReachabilityMatrix_RefImpl(test),
+        )
     if DEBUG:
         print("ReachabilityMatrixRef:")
         print(ReachabilityMatrixRef)
@@ -105,19 +107,23 @@ def runner(test):
     jsonInput["GraphEdges_par"] = test.GraphEdges
 
     stdout = ""
-    res = subprocess.run(["minizinc",
-                          "--statistics",
-                          "--solver",
-                          SOLVER,
-                          "-O1",
-                          "--all-solutions",
-                          "--json-stream",
-                          "--only-sections",
-                          "bogus",
-                          "unreachable.script-entry-point.json.mzn",
-                          "--cmdline-json-data",
-                          json.dumps(jsonInput)],
-                         capture_output=True)
+    res = subprocess.run(
+        [
+            "minizinc",
+            "--statistics",
+            "--solver",
+            SOLVER,
+            "-O1",
+            "--all-solutions",
+            "--json-stream",
+            "--only-sections",
+            "bogus",
+            "unreachable.script-entry-point.json.mzn",
+            "--cmdline-json-data",
+            json.dumps(jsonInput),
+        ],
+        capture_output=True,
+    )
     if DEBUG:
         print(res)
     if res.returncode != 0:
@@ -153,21 +159,27 @@ def runner(test):
                     print("ReachabilityMatrix:")
                     print(ReachabilityMatrix)
                 assert numpy.array_equal(
-                    ReachabilityMatrix, ReachabilityMatrixRef)
+                    ReachabilityMatrix, ReachabilityMatrixRef
+                )
     assert res["status"]["status"] == "ALL_SOLUTIONS"
     assert res["statistics"][2]["statistics"]["nSolutions"] >= 1
     assert res["statistics"][2]["statistics"]["nSolutions"] == 1
-    flatTime = res["statistics"][0]["statistics"]["flatTime"]
-    solveTime = res["statistics"][1]["statistics"]["solveTime"]
-    Vars = sum([res["statistics"][0]["statistics"][s]
-               for s in res["statistics"][0]["statistics"] if s.endswith("Vars")])
-    Constraints = sum([res["statistics"][0]["statistics"][s]
-                      for s in res["statistics"][0]["statistics"] if (s.endswith("Constraints") and not s.endswith("ReifiedConstraints"))])
+
+    stats = dict()
+    stats["NumNodes"] = test.NumNodes
+    stats["NumEdges"] = test.NumEdges
+    for k, v in res["statistics"][0]["statistics"].items():
+        k = "(flat) " + k
+        assert not (k in stats)
+        stats[k] = v
+    for k, v in res["statistics"][1]["statistics"].items():
+        k = "(solve) " + k
+        assert not (k in stats)
+        stats[k] = v
     if DEBUG:
         print("==================")
     bar_queue.put_nowait(1)
-    return Status(test.NumNodes, test.NumEdges, Vars,
-                  Constraints, flatTime, solveTime)
+    return stats
 
 
 def sampling_runner(i, num_nodes, num_nodes_is_upper_limit):
@@ -180,15 +192,16 @@ def sampling_runner(i, num_nodes, num_nodes_is_upper_limit):
     ALL_NODE_PAIRS = itertools.permutations(range(1, NumNodes + 1), r=2)
     ALL_NODE_PAIRS = [(e[0], e[1]) for e in ALL_NODE_PAIRS]
     assert len(ALL_NODE_PAIRS) == MAX_EDGES
+    assert MAX_EDGES > MIN_EDGES
     NumEdges = random.randint(MIN_EDGES, len(ALL_NODE_PAIRS))
-    assert NumEdges >= 0
     NodePairs = random.sample(ALL_NODE_PAIRS, k=NumEdges)
     GraphEdges = random.choices([False, True], k=NumEdges)
     test = TestData(
         NumNodes=NumNodes,
         NumEdges=NumEdges,
         NodePairs=NodePairs,
-        GraphEdges=GraphEdges)
+        GraphEdges=GraphEdges,
+    )
     # # test = TestData(
     # #     NumNodes=1,
     # #     NumEdges=0,
@@ -203,8 +216,7 @@ class SamplingRunner(object):
         self.num_nodes_is_upper_limit = num_nodes_is_upper_limit
 
     def __call__(self, i):
-        return sampling_runner(
-            i, self.num_nodes, self.num_nodes_is_upper_limit)
+        return sampling_runner(i, self.num_nodes, self.num_nodes_is_upper_limit)
 
 
 def generate_exhaustive_tests_for_graph(NumNodes, NumEdges):
@@ -214,13 +226,15 @@ def generate_exhaustive_tests_for_graph(NumNodes, NumEdges):
     ALL_NODE_PAIRS = [(e[0], e[1]) for e in ALL_NODE_PAIRS]
     assert len(ALL_NODE_PAIRS) == MAX_EDGES
     for NodePairs in itertools.combinations(ALL_NODE_PAIRS, NumEdges):
-        for GraphEdges in itertools.product(
-                [False, True], repeat=NumEdges):
-            tests.append(TestData(
-                NumNodes=NumNodes,
-                NumEdges=NumEdges,
-                NodePairs=NodePairs,
-                GraphEdges=GraphEdges))
+        for GraphEdges in itertools.product([False, True], repeat=NumEdges):
+            tests.append(
+                TestData(
+                    NumNodes=NumNodes,
+                    NumEdges=NumEdges,
+                    NodePairs=NodePairs,
+                    GraphEdges=GraphEdges,
+                )
+            )
     return tests
 
 
@@ -232,7 +246,8 @@ def generate_exhaustive_tests(MAX_NODES):
         MAX_EDGES = (NumNodes**2) - NumNodes
         for NumEdges in range(MIN_EDGES, MAX_EDGES + 1):
             tests[NumNodes].extend(
-                generate_exhaustive_tests_for_graph(NumNodes, NumEdges))
+                generate_exhaustive_tests_for_graph(NumNodes, NumEdges)
+            )
     return tests
 
 
@@ -247,7 +262,12 @@ def refresh_bar(pbar):
 
 
 def update_bar(total):
-    pbar = tqdm.tqdm(total=total, mininterval=math.inf, maxinterval=math.inf, miniters=math.inf)
+    pbar = tqdm.tqdm(
+        total=total,
+        mininterval=math.inf,
+        maxinterval=math.inf,
+        miniters=math.inf,
+    )
     pbar.monitor_interval = 0
     bar_timer = RepeatTimer(1, refresh_bar, args=(pbar,))
     bar_timer.start()
@@ -269,17 +289,21 @@ def entry_with_large_num_nodes(MAX_NODES):
     bar_process.start()
 
     if DEBUG:
-        r = list(map(SamplingRunner(
-            MAX_NODES, num_nodes_is_upper_limit=True), range(NUM_TESTS)))
+        r = list(
+            map(
+                SamplingRunner(MAX_NODES, num_nodes_is_upper_limit=True),
+                range(NUM_TESTS),
+            )
+        )
     else:
         with multiprocessing.Pool() as pool:
             r = list(
                 pool.imap_unordered(
-                    SamplingRunner(
-                        MAX_NODES,
-                        num_nodes_is_upper_limit=True),
+                    SamplingRunner(MAX_NODES, num_nodes_is_upper_limit=True),
                     range(NUM_TESTS),
-                    chunksize=chunksize))
+                    chunksize=chunksize,
+                )
+            )
         pool.close()
         pool.join()
 
@@ -325,27 +349,10 @@ def entry_with_num_nodes(MAX_NODES):
     return entry_with_large_num_nodes(MAX_NODES)
 
 
-def fun_poly(k, NumNodes, NumEdges, y):
-    return -y + k[0] + k[1] * NumNodes**1 + k[2] * NumNodes**2 + k[3] * \
-        NumNodes**3 + k[4] * NumEdges**1 + \
-        k[5] * NumEdges**2 + k[6] * NumEdges**3
-
-
-def print_poly(x, active_mask):
-    if (active_mask[0]):
-        print(" + {:.2e} ".format(x[0]))
-    if (active_mask[1]):
-        print(" + {:.2e}*NumNodes^1".format(x[1]))
-    if (active_mask[2]):
-        print(" + {:.2e}*NumNodes^2".format(x[2]))
-    if (active_mask[3]):
-        print(" + {:.2e}*NumNodes^3".format(x[3]))
-    if (active_mask[4]):
-        print(" + {:.2e}*NumEdges^1".format(x[4]))
-    if (active_mask[5]):
-        print(" + {:.2e}*NumEdges^2".format(x[5]))
-    if (active_mask[6]):
-        print(" + {:.2e}*NumEdges^3".format(x[6]))
+def print_to_string(*args, **kwargs):
+    with io.StringIO() as output:
+        print(*args, file=output, **kwargs)
+        return output.getvalue()
 
 
 def main():
@@ -355,41 +362,55 @@ def main():
     r = numpy.hstack((r, numpy.array(entry_with_num_nodes(10))))
     # r = numpy.hstack((r, numpy.array(entry_with_num_nodes(10))))
 
-    NumNodes = numpy.array([e.NumNodes for e in r])
-    NumEdges = numpy.array([e.NumEdges for e in r])
-    Vars = numpy.array([e.NumVars for e in r])
-    Constraints = numpy.array([e.NumConstraints for e in r])
-    FlatTime = numpy.array([e.FlatTime for e in r])
-    SolveTime = numpy.array([e.SolveTime for e in r])
+    headers = [
+        "Name",
+        "NumNodes (big-O)",
+        "... (formula)",
+        "NumEdges (big-O)",
+        "... (formula)",
+    ]
 
-    k = numpy.ones(1 + 2 * 3)
+    df = pd.DataFrame.from_records(r).fillna(0)
 
-    sol = scipy.optimize.least_squares(fun_poly, k, args=(
-        NumNodes, NumEdges, FlatTime), bounds=(numpy.zeros(len(k)), numpy.inf))
-    print("\nCompile time big-O: ")
-    print_poly(sol.x, sol.active_mask)
-    print("\n", sol)
+    res = []
+    for key in df.columns:
+        if key in [
+            "NumNodes",
+            "NumEdges",
+            "(flat) method",
+            "(solve) randomSeed",
+        ]:
+            continue
+        NumNodes = df["NumNodes"].to_numpy()
+        NumEdges = df["NumEdges"].to_numpy()
+        data = df[key].to_numpy()
 
-    if False:
-        sol = scipy.optimize.least_squares(fun_poly, k, args=(
-            NumNodes, NumEdges, Vars), bounds=(numpy.zeros(len(k)), numpy.inf))
-        print("\nCompile time Vars: ")
-        print_poly(sol.x, sol.active_mask)
-        print("\n", sol)
+        best0, fitted = big_o.infer_big_o_class(NumNodes, data)
+        best1, fitted = big_o.infer_big_o_class(NumEdges, data)
 
-        sol = scipy.optimize.least_squares(fun_poly, k, args=(
-            NumNodes, NumEdges, Constraints), bounds=(numpy.zeros(len(k)), numpy.inf))
-        print("\nCompile time Constraints: ")
-        print_poly(sol.x, sol.active_mask)
-        print("\n", sol)
+        best0_name = "{}".format(best0.__class__.__name__)
+        best0 = re.sub(
+            r"\bn\b",
+            "NumNodes",
+            best0.format_str()
+            .format(*best0.coefficients())
+            .replace("time = ", ""),
+        )
 
-    sol = scipy.optimize.least_squares(fun_poly, k, args=(
-        NumNodes, NumEdges, SolveTime), bounds=(numpy.zeros(len(k)), numpy.inf))
-    print("\nSolve time big-O: ")
-    print_poly(sol.x, sol.active_mask)
-    print("\n", sol)
+        best1_name = "{}".format(best1.__class__.__name__)
+        best1 = re.sub(
+            r"\bn\b",
+            "NumEdges",
+            best1.format_str()
+            .format(*best1.coefficients())
+            .replace("time = ", ""),
+        )
+
+        res.append([key, best0_name, best0, best1_name, best1])
+
+    print(tabulate(res, headers, tablefmt="github"))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     random.seed()
     main()
