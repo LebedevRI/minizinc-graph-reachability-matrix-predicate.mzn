@@ -8,8 +8,6 @@ predicate fzn_dreachable_multiroot(array[$$E] of $$N: from, array[$$E] of $$N: t
     } in
         forall(n in index_set(ns)) % root nodes must be chosen
               (rs[n] -> ns[n]) /\
-        forall(n in index_set(ns)) % self-parent is the same as zero distance from root
-              ((parent[n] = n) == (dist[n] = 0)) /\
         forall(n in index_set(ns)) % self-parent is the same as either non-chosen node or root node
               ((parent[n] = n) == ((not ns[n]) \/ rs[n])) /\
         forall(n in index_set(ns)) % each non-self-parent node is one more step removed from a root than its parent node
