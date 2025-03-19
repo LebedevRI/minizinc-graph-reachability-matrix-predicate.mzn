@@ -5,17 +5,20 @@ import itertools
 import json
 import math
 import multiprocessing
+import os
 import random
 import re
+import selectors
+import signal
 import subprocess
 import threading
 
-import numpy
-import networkx
-import tqdm
-from tabulate import tabulate
-import pandas as pd
 import big_o
+import networkx
+import numpy
+import pandas as pd
+import tabulate
+import tqdm
 
 DEBUG = False
 
@@ -25,6 +28,67 @@ SOLVER = "chuffed"
 # `link_set_to_booleans` does not like empty ranges.
 MIN_NODES = 2
 MIN_EDGES = 1
+
+
+class WaitableEvent:
+    def __init__(self):
+        self._read_fd, self._write_fd = os.pipe()
+
+    def wait(self, timeout=None):
+        rfds, wfds, efds = selectors.select.select(
+            [self._read_fd], [], [], timeout
+        )
+        return self._read_fd in rfds
+
+    def is_set(self):
+        return self.wait(0)
+
+    def clear(self):
+        if self.is_set():
+            os.read(self._read_fd, 1)
+
+    def set(self):
+        if not self.is_set():
+            os.write(self._write_fd, b"1")
+
+    def fileno(self):
+        return self._read_fd
+
+    def __del__(self):
+        os.close(self._read_fd)
+        os.close(self._write_fd)
+
+
+class GracefulInterruptHandler(object):
+    def __init__(self, sig=signal.SIGINT):
+        self.sig = sig
+
+    def __enter__(self):
+        self.interrupted = False
+        self.interrupted_event = WaitableEvent()
+        self.released = False
+        self.original_handler = signal.getsignal(self.sig)
+
+        def handler(signum, frame):
+            self.release()
+            self.interrupted = True
+            self.interrupted_event.set()
+
+        signal.signal(self.sig, handler)
+        return self
+
+    def __exit__(self, type, value, tb):
+        self.release()
+
+    def interrupted(self):
+        return self.interrupted
+
+    def release(self):
+        if self.released:
+            return False
+        signal.signal(self.sig, self.original_handler)
+        self.released = True
+        return True
 
 
 def GraphToMatrix(data):
@@ -85,7 +149,14 @@ class TestData:
         return self.__repr__()
 
 
+def worker_thread(res, subprocess_event):
+    res.wait()
+    subprocess_event.set()
+
+
 def runner(test):
+    if ihl.interrupted:
+        return
     ReachabilityMatrixRef = ComputeReachabilityMatrix(test)
     if DEBUG:
         print("\n\n\n\n")
@@ -100,6 +171,14 @@ def runner(test):
         print("ReachabilityMatrixRef:")
         print(ReachabilityMatrixRef)
 
+    subprocess_event = WaitableEvent()
+
+    sel = selectors.DefaultSelector()
+    sel.register(
+        ihl.interrupted_event, selectors.EVENT_READ, "interruption event"
+    )
+    sel.register(subprocess_event, selectors.EVENT_READ, "completetion event")
+
     jsonInput = {}
     jsonInput["NUM_GRAPH_NODES"] = test.NumNodes
     jsonInput["NUM_GRAPH_EDGES"] = test.NumEdges
@@ -107,7 +186,7 @@ def runner(test):
     jsonInput["GraphEdges_par"] = test.GraphEdges
 
     stdout = ""
-    res = subprocess.run(
+    res = subprocess.Popen(
         [
             "minizinc",
             "--statistics",
@@ -122,19 +201,34 @@ def runner(test):
             "--cmdline-json-data",
             json.dumps(jsonInput),
         ],
-        capture_output=True,
+        start_new_session=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
+    threading.Thread(target=worker_thread, args=(res, subprocess_event)).start()
+
+    events = sel.select()
+    for key, mask in events:
+        if key.fileobj == ihl.interrupted_event:
+            assert ihl.interrupted_event.is_set()
+            res.terminate()
+            return
+        if key.fileobj == subprocess_event:
+            continue
+        assert False
+
     if DEBUG:
         print(res)
     if res.returncode != 0:
-        print(res.stderr)
-    res.check_returncode()
+        print(res.stdout.read())
+        print(res.stderr.read())
+        raise subprocess.CalledProcessError(returncode=res.returncode, cmd='')
     stdout = res.stdout
     if DEBUG:
         print(stdout)
 
     res = {}
-    for s in stdout.splitlines():
+    for s in stdout.read().splitlines():
         section = json.loads(s)
         if not section["type"] in res:
             res[section["type"]] = []
@@ -183,6 +277,8 @@ def runner(test):
 
 
 def sampling_runner(i, num_nodes, num_nodes_is_upper_limit):
+    if ihl.interrupted:
+        return
     if num_nodes_is_upper_limit:
         NumNodes = random.randint(MIN_NODES, num_nodes)
     else:
@@ -362,6 +458,9 @@ def main():
     r = numpy.hstack((r, numpy.array(entry_with_num_nodes(10))))
     # r = numpy.hstack((r, numpy.array(entry_with_num_nodes(10))))
 
+    if ihl.interrupted:
+        return
+
     headers = [
         "Name",
         "NumNodes (big-O)",
@@ -408,9 +507,11 @@ def main():
 
         res.append([key, best0_name, best0, best1_name, best1])
 
-    print(tabulate(res, headers, tablefmt="github"))
+    print(tabulate.tabulate(res, headers, tablefmt="github"))
 
 
 if __name__ == "__main__":
     random.seed()
-    main()
+    global ihl
+    with GracefulInterruptHandler() as ihl:
+        main()
