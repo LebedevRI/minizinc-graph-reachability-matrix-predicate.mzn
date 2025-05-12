@@ -10,6 +10,7 @@ import re
 import subprocess
 import threading
 
+import sys
 import numpy
 import networkx
 import tqdm
@@ -387,6 +388,9 @@ def main():
         NumNodes = df["NumNodes"].to_numpy()
         NumEdges = df["NumEdges"].to_numpy()
         data = df[key].to_numpy()
+
+        # "Time" can not be zero.
+        data = [ max(e, sys.float_info.epsilon) for e in data ]
 
         best0, fitted = big_o.infer_big_o_class(NumNodes, data)
         best1, fitted = big_o.infer_big_o_class(NumEdges, data)
